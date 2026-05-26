@@ -131,6 +131,20 @@ export const platform = {
     },
   },
 
+  /** Write text to the system clipboard via host, with a navigator fallback. */
+  clipboard: {
+    async write(text: string): Promise<boolean> {
+      try {
+        const ok = await call('clipboard.write', [text]);
+        if (typeof ok === 'boolean') return ok;
+      } catch { /* fall through to browser API */ }
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch { return false; }
+    },
+  },
+
   async registerCommand(cmd: { id: string; label: string; hint?: string }, invoke: () => void): Promise<() => void> {
     try {
       await call('command.register', [cmd]);
