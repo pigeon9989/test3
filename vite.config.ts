@@ -3,7 +3,9 @@ import react from '@vitejs/plugin-react';
 import { federation } from '@module-federation/vite';
 
 const REMOTE_NAME = 'markdown';
-const GITHUB_PAGES_BASE = '/test3/';
+// Absolute URL so the emitted mf-manifest.json's `publicPath` is fully-qualified;
+// otherwise the host runtime resolves against its own origin and 404s.
+const GITHUB_PAGES_BASE = 'https://pigeon9989.github.io/test3/';
 
 export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
