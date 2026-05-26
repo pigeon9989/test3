@@ -44,7 +44,7 @@ jobs:
           semgrep scan --config p/owasp-top-ten --config p/typescript --config p/react --config p/security-audit --error --quiet --sarif --output semgrep.sarif || true
           semgrep scan --config p/owasp-top-ten --config p/typescript --config p/react --error --quiet
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with: { version: '${{ env.PNPM_VERSION }}' }
       - uses: actions/setup-node@v4
         with:
@@ -68,7 +68,7 @@ jobs:
     needs: security
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with: { version: '${{ env.PNPM_VERSION }}' }
       - uses: actions/setup-node@v4
         with:
