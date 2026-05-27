@@ -1,29 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Button, Menu, Pill, Segmented, Stack, Text,
+} from '@mf-platform/ui';
 import { platform } from '../platform';
-
-// Module-local narrow-viewport hook — modules deploy independently from the
-// host, so we don't share `useIsMobile`.
-function useIsNarrow(): boolean {
-  const [narrow, setNarrow] = useState(() =>
-    typeof window !== 'undefined' && window.matchMedia('(max-width: 720px)').matches,
-  );
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 720px)');
-    const fn = (e: MediaQueryListEvent) => setNarrow(e.matches);
-    mq.addEventListener('change', fn);
-    return () => mq.removeEventListener('change', fn);
-  }, []);
-  return narrow;
-}
 
 /* ─── Templates ─── */
 
 const TEMPLATES: { id: string; label: string; body: string }[] = [
-  {
-    id: 'blank',
-    label: '빈 문서',
-    body: '',
-  },
+  { id: 'blank',   label: '빈 문서',     body: '' },
   {
     id: 'intro',
     label: '소개',
@@ -140,7 +124,7 @@ function renderInline(text: string): string {
   return out;
 }
 
-interface Heading { level: number; text: string; id: string; }
+interface MdHeading { level: number; text: string; id: string; }
 
 function slugify(s: string): string {
   return s
@@ -150,10 +134,10 @@ function slugify(s: string): string {
     .replace(/\s+/g, '-');
 }
 
-function mdToHtml(md: string): { html: string; headings: Heading[] } {
+function mdToHtml(md: string): { html: string; headings: MdHeading[] } {
   const lines = md.split(/\r?\n/);
   const out: string[] = [];
-  const headings: Heading[] = [];
+  const headings: MdHeading[] = [];
   let i = 0;
   while (i < lines.length) {
     const raw = lines[i] ?? '';
@@ -191,7 +175,6 @@ function mdToHtml(md: string): { html: string; headings: Heading[] } {
       continue;
     }
 
-    // task list (- [ ] / - [x])
     if (/^(-|\*)\s+\[[ xX]\]\s+/.test(raw)) {
       const items: string[] = [];
       while (i < lines.length && /^(-|\*)\s+\[[ xX]\]\s+/.test(lines[i] ?? '')) {
@@ -254,6 +237,21 @@ interface PersistedState {
   view: ViewMode;
 }
 
+// Module-local narrow-viewport hook — modules deploy independently from
+// the host, so we don't share `useIsMobile` between them.
+function useIsNarrow(): boolean {
+  const [narrow, setNarrow] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 720px)').matches,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 720px)');
+    const fn = (e: MediaQueryListEvent) => setNarrow(e.matches);
+    mq.addEventListener('change', fn);
+    return () => mq.removeEventListener('change', fn);
+  }, []);
+  return narrow;
+}
+
 export default function App() {
   const initial = TEMPLATES[1]!.body;
   const [src, setSrc] = useState(initial);
@@ -264,8 +262,8 @@ export default function App() {
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const narrow = useIsNarrow();
-  // On narrow viewports there isn't room for a side-by-side editor + preview
-  // *and* a sidebar outline, so we force-collapse split → edit and outline off.
+  // On narrow viewports the split view doesn't fit; force-collapse to edit
+  // and hide the outline column.
   const effectiveView: ViewMode = narrow && view === 'split' ? 'edit' : view;
   const effectiveOutline = narrow ? false : showOutline;
 
@@ -288,8 +286,6 @@ export default function App() {
     setSavedAt(Date.now());
   }, [src, view, hydrated]);
 
-  // Tick a "saved Ns ago" label so the user has feedback that the autosave
-  // pipeline is alive. Only re-runs while a save has happened.
   const [, forceTick] = useState(0);
   useEffect(() => {
     if (savedAt === null) return;
@@ -361,7 +357,7 @@ export default function App() {
   const tools = [
     { id: 'bold',    label: 'B',   title: '굵게 (⌘B)',   onClick: () => surroundSelection('**'), style: { fontWeight: 700 } },
     { id: 'italic',  label: 'I',   title: '기울임 (⌘I)', onClick: () => surroundSelection('*'),  style: { fontStyle: 'italic' as const } },
-    { id: 'strike',  label: 'S',   title: '취소선',       onClick: () => surroundSelection('~~'), style: { textDecoration: 'line-through' } },
+    { id: 'strike',  label: 'S',   title: '취소선',       onClick: () => surroundSelection('~~'), style: { textDecoration: 'line-through' as const } },
     { id: 'code',    label: '</>', title: '인라인 코드',  onClick: () => surroundSelection('`'),  style: { fontFamily: 'var(--font-mono)' } },
     { id: 'h1',      label: 'H1',  title: '제목 1',       onClick: () => surroundSelection('', '', '# ') },
     { id: 'h2',      label: 'H2',  title: '제목 2',       onClick: () => surroundSelection('', '', '## ') },
@@ -371,7 +367,6 @@ export default function App() {
     { id: 'task',    label: '☐',   title: '할 일',         onClick: () => surroundSelection('', '', '- [ ] ') },
   ];
 
-  /* Keyboard shortcuts */
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey)) return;
@@ -385,14 +380,16 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const gridTemplateColumns = (effectiveOutline ? '180px ' : '') + (effectiveView === 'split' ? '1fr 1fr' : '1fr');
+
   return (
     <section
       style={{
-        background: 'var(--bg-panel, #fff)',
-        border: '1px solid var(--border, #e3e3eb)',
+        background: 'var(--bg-panel)',
+        border: '1px solid var(--border)',
         borderRadius: 14,
         overflow: 'hidden',
-        color: 'var(--text, #1a1a1a)',
+        color: 'var(--text)',
         fontFamily: 'var(--font-sans, -apple-system, system-ui, sans-serif)',
       }}
     >
@@ -400,8 +397,8 @@ export default function App() {
       <header
         style={{
           padding: '12px 16px',
-          background: 'var(--bg-rail, #fafafa)',
-          borderBottom: '1px solid var(--border, #eee)',
+          background: 'var(--bg-rail, transparent)',
+          borderBottom: '1px solid var(--border)',
           display: 'flex',
           alignItems: 'center',
           gap: 10,
@@ -409,32 +406,57 @@ export default function App() {
         }}
       >
         <span aria-hidden style={{ fontSize: 18, lineHeight: 1 }}>📄</span>
-        <strong style={{ fontSize: 14, fontWeight: 600 }}>Markdown</strong>
-        {hosted && !narrow && <SdkBadge />}
-        <span style={{ color: 'var(--text-muted)', fontSize: 11.5 }} className="tabular">
+        <Text weight="semibold" size="md">Markdown</Text>
+        {hosted && !narrow && (
+          <Pill tone="success" size="sm" style={{ letterSpacing: '0.04em' }}>SDK CONNECTED</Pill>
+        )}
+        <Text size="xs" tone="muted" mono>
           {src.length}자 · {wordCount}단어{narrow ? '' : ` · 약 ${readingMin}분`}
-        </span>
+        </Text>
         {savedLabel && (
-          <span
-            style={{ color: 'var(--text-dim)', fontSize: 10.5, letterSpacing: '0.02em' }}
-            aria-live="polite"
-          >
+          <Text size="xs" tone="dim" aria-live="polite" style={{ letterSpacing: '0.02em' }}>
             {savedLabel}
-          </span>
+          </Text>
         )}
         <div style={{ flex: 1 }} />
-        {!narrow && <TemplatePicker onPick={loadTemplate} />}
-        <ViewToggle value={effectiveView} onChange={setView} mobile={narrow} />
         {!narrow && (
-          <button
-            type="button"
+          <Menu placement="bottom-end">
+            <Menu.Trigger>
+              <Button size="sm">템플릿 ▾</Button>
+            </Menu.Trigger>
+            <Menu.Items>
+              {TEMPLATES.map((t) => (
+                <Menu.Item key={t.id} onSelect={() => loadTemplate(t.id)}>
+                  {t.label}
+                </Menu.Item>
+              ))}
+            </Menu.Items>
+          </Menu>
+        )}
+        <Segmented<ViewMode>
+          value={effectiveView}
+          onChange={setView}
+          options={
+            narrow
+              ? [{ value: 'edit', label: '편집' }, { value: 'preview', label: '미리보기' }]
+              : [
+                  { value: 'edit', label: '편집' },
+                  { value: 'split', label: '나란히' },
+                  { value: 'preview', label: '미리보기' },
+                ]
+          }
+          size="sm"
+          aria-label="View"
+        />
+        {!narrow && (
+          <Button
+            size="sm"
+            variant={showOutline ? 'primary' : 'secondary'}
             onClick={() => setShowOutline((s) => !s)}
             title="목차 토글"
-            aria-pressed={showOutline}
-            style={iconBtn(showOutline)}
           >
             ☰
-          </button>
+          </Button>
         )}
       </header>
 
@@ -442,8 +464,8 @@ export default function App() {
       <div
         style={{
           padding: '6px 10px',
-          background: 'var(--bg-rail, #fafafa)',
-          borderBottom: '1px solid var(--border, #eee)',
+          background: 'var(--bg-rail, transparent)',
+          borderBottom: '1px solid var(--border)',
           display: 'flex',
           alignItems: 'center',
           gap: 4,
@@ -451,36 +473,28 @@ export default function App() {
         }}
       >
         {tools.map((t) => (
-          <button
+          <Button
             key={t.id}
-            type="button"
+            size="sm"
+            variant="secondary"
             title={t.title}
             onClick={t.onClick}
-            style={{
-              ...toolBtn,
-              ...(t.style ?? {}),
-            }}
+            style={{ minWidth: 28, ...(t.style ?? {}) }}
           >
             {t.label}
-          </button>
+          </Button>
         ))}
         <span style={{ width: 1, height: 18, background: 'var(--border)', margin: '0 6px' }} />
-        <button type="button" onClick={copyMd} style={toolTextBtn} title="원본 마크다운을 클립보드에 복사">
+        <Button size="sm" variant="ghost" onClick={copyMd} title="원본 마크다운을 클립보드에 복사">
           MD 복사
-        </button>
-        <button type="button" onClick={copyHtml} style={toolTextBtn} title="렌더된 HTML을 클립보드에 복사">
+        </Button>
+        <Button size="sm" variant="ghost" onClick={copyHtml} title="렌더된 HTML을 클립보드에 복사">
           HTML 복사
-        </button>
+        </Button>
       </div>
 
       {/* Body */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: outlineWidth(effectiveOutline) + (effectiveView === 'split' ? '1fr 1fr' : '1fr'),
-          minHeight: narrow ? 320 : 420,
-        }}
-      >
+      <div style={{ display: 'grid', gridTemplateColumns, minHeight: narrow ? 320 : 420 }}>
         {effectiveOutline && <Outline headings={headings} />}
         {(effectiveView === 'split' || effectiveView === 'edit') && (
           <textarea
@@ -497,7 +511,7 @@ export default function App() {
               lineHeight: 1.65,
               resize: 'none',
               minHeight: narrow ? 320 : 420,
-              background: 'var(--bg, #fff)',
+              background: 'var(--bg)',
               color: 'var(--text)',
               borderLeft: effectiveOutline ? '1px solid var(--border)' : 'none',
             }}
@@ -514,204 +528,27 @@ export default function App() {
 
 /* ─── Sub-components ─── */
 
-function outlineWidth(show: boolean) {
-  return show ? '180px ' : '';
-}
-
-const toolBtn: React.CSSProperties = {
-  height: 26,
-  minWidth: 28,
-  padding: '0 8px',
-  background: 'var(--bg-elev, #fff)',
-  color: 'var(--text-mid, #555)',
-  border: '1px solid var(--border, #ddd)',
-  borderRadius: 5,
-  fontSize: 11.5,
-  cursor: 'pointer',
-};
-
-const toolTextBtn: React.CSSProperties = {
-  ...toolBtn,
-  padding: '0 10px',
-  fontSize: 11.5,
-};
-
-function iconBtn(active: boolean): React.CSSProperties {
-  return {
-    height: 28,
-    minWidth: 28,
-    padding: '0 8px',
-    background: active ? 'var(--accent-soft)' : 'var(--bg-elev, #fff)',
-    color: active ? 'var(--accent)' : 'var(--text-mid)',
-    border: `1px solid ${active ? 'transparent' : 'var(--border)'}`,
-    borderRadius: 6,
-    fontSize: 14,
-    cursor: 'pointer',
-  };
-}
-
-function SdkBadge() {
-  return (
-    <span
-      style={{
-        fontSize: 10.5,
-        padding: '2px 8px',
-        borderRadius: 999,
-        background: 'var(--success-soft, rgba(0,180,80,0.12))',
-        color: 'var(--success, #0a8a52)',
-        fontWeight: 600,
-        letterSpacing: '0.04em',
-      }}
-      title="플랫폼 SDK 연결됨"
-    >
-      SDK CONNECTED
-    </span>
-  );
-}
-
-function ViewToggle({ value, onChange, mobile = false }: { value: ViewMode; onChange: (v: ViewMode) => void; mobile?: boolean }) {
-  // Hide the "split" option on narrow screens — there isn't room for it.
-  const options: ViewMode[] = mobile ? ['edit', 'preview'] : ['edit', 'split', 'preview'];
-  return (
-    <div
-      role="group"
-      aria-label="View"
-      style={{
-        display: 'flex',
-        gap: 2,
-        padding: 2,
-        background: 'var(--bg-elev)',
-        border: '1px solid var(--border)',
-        borderRadius: 7,
-      }}
-    >
-      {options.map((v) => {
-        const active = v === value;
-        return (
-          <button
-            key={v}
-            type="button"
-            onClick={() => onChange(v)}
-            aria-pressed={active}
-            style={{
-              padding: '4px 10px',
-              background: active ? 'var(--bg-panel)' : 'transparent',
-              color: active ? 'var(--text)' : 'var(--text-muted)',
-              border: 'none',
-              borderRadius: 5,
-              fontSize: 11.5,
-              fontWeight: active ? 600 : 500,
-              cursor: 'pointer',
-              boxShadow: active ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
-            }}
-          >
-            {v === 'edit' ? '편집' : v === 'split' ? '나란히' : '미리보기'}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function TemplatePicker({ onPick }: { onPick: (id: string) => void }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div style={{ position: 'relative' }}>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        style={{
-          height: 28,
-          padding: '0 10px',
-          background: 'var(--bg-elev)',
-          border: '1px solid var(--border)',
-          borderRadius: 6,
-          color: 'var(--text-mid)',
-          fontSize: 11.5,
-          cursor: 'pointer',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
-        }}
-      >
-        템플릿 <span style={{ fontSize: 8 }}>▼</span>
-      </button>
-      {open && (
-        <>
-          <div
-            onClick={() => setOpen(false)}
-            style={{ position: 'fixed', inset: 0, zIndex: 9 }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              top: 32,
-              right: 0,
-              minWidth: 180,
-              background: 'var(--bg-panel)',
-              border: '1px solid var(--border-strong)',
-              borderRadius: 8,
-              padding: 4,
-              boxShadow: '0 6px 24px rgba(0,0,0,0.18)',
-              zIndex: 10,
-            }}
-          >
-            {TEMPLATES.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => { onPick(t.id); setOpen(false); }}
-                style={{
-                  width: '100%',
-                  padding: '6px 10px',
-                  textAlign: 'left',
-                  background: 'transparent',
-                  border: 'none',
-                  borderRadius: 5,
-                  color: 'var(--text)',
-                  fontSize: 12.5,
-                  cursor: 'pointer',
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-hover)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-function Outline({ headings }: { headings: Heading[] }) {
+function Outline({ headings }: { headings: MdHeading[] }) {
   return (
     <aside
       style={{
-        background: 'var(--bg-rail, #fafafa)',
+        background: 'var(--bg-rail, transparent)',
         borderRight: '1px solid var(--border)',
         padding: '14px 12px',
         overflowY: 'auto',
         maxHeight: 540,
       }}
     >
-      <div
-        style={{
-          fontSize: 10.5,
-          fontWeight: 600,
-          color: 'var(--text-muted)',
-          textTransform: 'uppercase',
-          letterSpacing: '0.08em',
-          marginBottom: 8,
-        }}
-      >
-        목차 <span className="tabular" style={{ color: 'var(--text-dim)' }}>{headings.length}</span>
-      </div>
+      <Stack align="center" gap="sm" style={{ marginBottom: 8 }}>
+        <Text size="xs" weight="semibold" tone="muted" style={{ textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          목차
+        </Text>
+        <Text size="xs" tone="dim" mono>{headings.length}</Text>
+      </Stack>
       {headings.length === 0 ? (
-        <div style={{ fontSize: 11.5, color: 'var(--text-dim)', padding: '4px 6px' }}>
+        <Text size="xs" tone="dim" style={{ padding: '4px 6px' }}>
           제목(# / ##)을 추가하면 여기에 표시됩니다.
-        </div>
+        </Text>
       ) : (
         <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
           {headings.map((h, i) => (
@@ -746,8 +583,8 @@ function Preview({ html, hasEditor, mobile = false }: { html: string; hasEditor:
     <div
       style={{
         padding: mobile ? '14px 16px' : '18px 24px',
-        borderLeft: hasEditor ? '1px solid var(--border, #eee)' : 'none',
-        background: 'var(--bg-panel, #fff)',
+        borderLeft: hasEditor ? '1px solid var(--border)' : 'none',
+        background: 'var(--bg-panel)',
         overflow: 'auto',
         color: 'var(--text)',
         fontSize: 13.5,
